@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
+import PantryScene from './PantryScene';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -59,6 +60,7 @@ const IngredientStore = ({ onIngredientClick, showAddNew = true }) => {
         <div style={{ display:'flex', gap:6 }}>
           <button className={`btn btn-sm ${view==='card'?'':'btn-ghost'}`} onClick={() => setView('card')}>⊞ Cards</button>
           <button className={`btn btn-sm ${view==='list'?'':'btn-ghost'}`} onClick={() => setView('list')}>☰ List</button>
+          <button className={`btn btn-sm ${view==='pantry'?'':'btn-ghost'}`} onClick={() => setView('pantry')}>🏠 Pantry</button>
         </div>
         {showAddNew && (
           <button className="btn btn-sm btn-secondary" onClick={() => setShowAdd(!showAdd)}>
@@ -106,7 +108,13 @@ const IngredientStore = ({ onIngredientClick, showAddNew = true }) => {
         <p style={{ color:'var(--muted)', fontSize:'0.85rem' }}>No ingredients found.</p>
       )}
 
-      {view === 'card' ? (
+      {view === 'pantry' ? (
+        <PantryScene
+          ingredients={ingredients}
+          onItemClick={handleClick}
+          flashedId={addedFlash}
+        />
+      ) : view === 'card' ? (
         <div className="ingredient-card-grid">
           {ingredients.map(ing => (
             <div

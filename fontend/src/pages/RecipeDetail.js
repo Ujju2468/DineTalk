@@ -2,15 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import CookMode from '../components/CookMode';
 
-<<<<<<< HEAD
-=======
 const formatDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 
->>>>>>> 97de632 (Ingridents store added, cook mode added and some other things fixed)
 const RecipeDetail = () => {
   const { id } = useParams();
   const [recipe, setRecipe] = useState(null);
+  const [cookMode, setCookMode] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -19,13 +18,7 @@ const RecipeDetail = () => {
     setRecipe(res.data);
   }, [id]);
 
-<<<<<<< HEAD
-  useEffect(() => {
-    fetchRecipe();
-  }, [fetchRecipe]);
-=======
   useEffect(() => { fetchRecipe(); }, [fetchRecipe]);
->>>>>>> 97de632 (Ingridents store added, cook mode added and some other things fixed)
 
   const handleLike = async () => {
     const res = await api.put(`/recipes/${id}/like`);
@@ -42,53 +35,6 @@ const RecipeDetail = () => {
     navigate('/groups', { state: { shareRecipeId: recipe._id, shareRecipeTitle: recipe.title } });
   };
 
-<<<<<<< HEAD
-  if (!recipe) return <div className="container">Loading...</div>;
-
-  const isOwner = user && recipe.author?._id === user._id;
-  const hasLiked = recipe.likes?.some((l) => l === user._id || l._id === user._id);
-
-  return (
-    <div className="container">
-      <Link to="/recipes">&larr; Back to all recipes</Link>
-      <div className="card" style={{ marginTop: 14 }}>
-        {recipe.image && <img src={recipe.image} alt={recipe.title} style={{ width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 8 }} />}
-        <span className="recipe-tag" style={{ marginTop: 14 }}>{recipe.category}</span>
-        <h2>{recipe.title}</h2>
-        <p style={{ color: '#8A7B6C' }}>{recipe.description}</p>
-        <div className="recipe-meta" style={{ marginBottom: 10 }}>
-          <span>by {recipe.author?.username}</span>
-          <span>⏱ {recipe.cookTime} min · 🍽 {recipe.servings} servings</span>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-outline" onClick={handleLike}>
-            {hasLiked ? '❤️ Liked' : '🤍 Like'} ({recipe.likes?.length || 0})
-          </button>
-          <button className="btn btn-secondary" onClick={sendToChat}>💬 Share to Dinner Chat</button>
-          {isOwner && (
-            <>
-              <button className="btn" onClick={() => navigate(`/recipes/${id}/edit`)}>Edit</button>
-              <button className="btn btn-danger" onClick={handleDelete}>Delete</button>
-            </>
-          )}
-        </div>
-
-        <div className="detail-section">
-          <h3>Ingredients</h3>
-          <ul>
-            {recipe.ingredients.map((ing, i) => <li key={i}>{ing}</li>)}
-          </ul>
-        </div>
-
-        <div className="detail-section">
-          <h3>Steps</h3>
-          <ol>
-            {recipe.steps.map((step, i) => <li key={i}>{step}</li>)}
-          </ol>
-        </div>
-      </div>
-=======
   if (!recipe) return (
     <div className="container" style={{ textAlign: 'center', paddingTop: 80 }}>
       <div style={{ fontSize: '3rem' }}>🍲</div>
@@ -173,6 +119,9 @@ const RecipeDetail = () => {
           {hasLiked ? '❤️' : '🤍'} {recipe.likes?.length || 0} Like{recipe.likes?.length !== 1 ? 's' : ''}
         </button>
         <button className="btn" onClick={sendToChat}>💬 Share to Chat</button>
+        {recipe.steps?.length > 0 && (
+          <button className="btn btn-secondary" onClick={() => setCookMode(true)}>🍳 Cook Mode</button>
+        )}
         {isOwner && (
           <>
             <button className="btn btn-ghost" onClick={() => navigate(`/recipes/${id}/edit`)}>✏️ Edit</button>
@@ -205,7 +154,8 @@ const RecipeDetail = () => {
           ))}
         </ol>
       </div>
->>>>>>> 97de632 (Ingridents store added, cook mode added and some other things fixed)
+
+      {cookMode && <CookMode recipe={recipe} onClose={() => setCookMode(false)} />}
     </div>
   );
 };

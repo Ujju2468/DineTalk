@@ -12,10 +12,7 @@ const messageRoutes = require('./routes/messageRoutes');
 const pollRoutes = require('./routes/pollRoutes');
 const groupRoutes = require('./routes/groupRoutes');
 const pushRoutes = require('./routes/pushRoutes');
-<<<<<<< HEAD
-=======
 const ingredientRoutes = require('./routes/ingredientRoutes');
->>>>>>> 97de632 (Ingridents store added, cook mode added and some other things fixed)
 
 connectDB();
 
@@ -29,10 +26,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/polls', pollRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/push', pushRoutes);
-<<<<<<< HEAD
-=======
 app.use('/api/ingredients', ingredientRoutes);
->>>>>>> 97de632 (Ingridents store added, cook mode added and some other things fixed)
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
