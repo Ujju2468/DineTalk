@@ -5,15 +5,39 @@ const { protect } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 // FIX: use $regex for partial search instead of $text
+// GET /api/recipes — support search, categories, origin, cookTime
 router.get('/', async (req, res) => {
   try {
-    const { category, search } = req.query;
-    const filter = {};
-    if (category && category !== 'All') filter.categories = category;
-    if (search) {
-      const re = { $regex: search, $options: 'i' };
-      filter.$or = [{ title: re }, { description: re }, { origin: re }, { region: re }];
+    const { category, search, origin, maxCookTime } = req.query;
+    const conditions = [];
+
+    if (category && category !== 'All') {
+      conditions.push({ $or: [{ categories: category }, { category: category }] });
     }
+
+    if (origin && origin !== 'All') {
+      conditions.push({ $or: [{ origin: { $regex: origin, $options: 'i' } }, { region: { $regex: origin, $options: 'i' } }] });
+    }
+
+    if (maxCookTime && Number(maxCookTime) > 0) {
+      conditions.push({ cookTime: { $lte: Number(maxCookTime) } });
+    }
+
+    if (search && search.trim()) {
+      const re = { $regex: search.trim(), $options: 'i' };
+      conditions.push({
+        $or: [
+          { title: re },
+          { description: re },
+          { origin: re },
+          { region: re },
+          { 'ingredients.name': re },
+          { ingredients: re }
+        ]
+      });
+    }
+
+    const filter = conditions.length > 0 ? { $and: conditions } : {};
     const recipes = await Recipe.find(filter)
       .populate('author', 'username avatar')
       .sort({ createdAt: -1 });
@@ -21,10 +45,6 @@ router.get('/', async (req, res) => {
   } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
-router.get('/categories', (req, res) => {
-  const { CATEGORIES } = require('../models/Recipe');
-  res.json(CATEGORIES);
-});
 
 router.get('/mine', protect, async (req, res) => {
   try {
@@ -45,7 +65,7 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', protect, async (req, res) => {
   try {
-    const { title, description, origin, region, categories, otherCategory, ingredients, steps, cookTime, servings, image } = req.body;
+    const { title, description, origin, region, categories, otherCategory, ingredients, steps, sections, cookTime, servings, image } = req.body;
     if (!title || !ingredients || !steps)
       return res.status(400).json({ message: 'Title, ingredients and steps are required' });
     const recipe = await Recipe.create({
@@ -53,6 +73,7 @@ router.post('/', protect, async (req, res) => {
       categories: categories || ['Other'],
       otherCategory: otherCategory || '',
       ingredients, steps,
+      sections: sections || [],
       cookTime: Number(cookTime) || 0,
       servings: Number(servings) || 1,
       image,
@@ -69,7 +90,7 @@ router.put('/:id', protect, async (req, res) => {
     if (!recipe) return res.status(404).json({ message: 'Recipe not found' });
     if (recipe.author.toString() !== req.user._id.toString())
       return res.status(403).json({ message: 'Not authorized' });
-    const fields = ['title','description','origin','region','categories','otherCategory','ingredients','steps','cookTime','servings','image'];
+    const fields = ['title','description','origin','region','categories','otherCategory','ingredients','steps','sections','cookTime','servings','image'];
     fields.forEach(f => { if (req.body[f] !== undefined) recipe[f] = req.body[f]; });
     const updated = await recipe.save();
     const populated = await updated.populate('author', 'username avatar');

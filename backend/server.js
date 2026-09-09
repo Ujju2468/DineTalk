@@ -13,6 +13,9 @@ const pollRoutes = require('./routes/pollRoutes');
 const groupRoutes = require('./routes/groupRoutes');
 const pushRoutes = require('./routes/pushRoutes');
 const ingredientRoutes = require('./routes/ingredientRoutes');
+const kitchenItemRoutes = require('./routes/kitchenItemRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const commentRoutes = require('./routes/commentRoutes');
 
 connectDB();
 
@@ -27,6 +30,9 @@ app.use('/api/polls', pollRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/ingredients', ingredientRoutes);
+app.use('/api/kitchen-items', kitchenItemRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/comments', commentRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 

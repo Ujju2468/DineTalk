@@ -5,6 +5,17 @@ const CATEGORIES = [
   'Beverages','Appetizers','Vegan','Vegetarian','Non-Veg','Other'
 ];
 
+const stepSchema = new mongoose.Schema({
+  instructionText: { type: String, required: true },
+  timerSeconds: { type: Number, default: 0 }
+});
+
+const sectionSchema = new mongoose.Schema({
+  name: { type: String, required: true, default: 'Instructions' },
+  order: { type: Number, default: 0 },
+  steps: [stepSchema]
+});
+
 const recipeSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
@@ -12,9 +23,10 @@ const recipeSchema = new mongoose.Schema(
     origin: { type: String, default: '' },
     region: { type: String, default: '' },
     categories: [{ type: String, enum: CATEGORIES }],
-    otherCategory: { type: String, default: '' }, // FIX: custom text when "Other" selected
+    otherCategory: { type: String, default: '' },
     ingredients: [{ type: String, required: true }],
-    steps: [{ type: String, required: true }],
+    steps: [{ type: String }],
+    sections: [sectionSchema],
     cookTime: { type: Number, default: 0 },
     servings: { type: Number, default: 1 },
     image: { type: String, default: '' },
