@@ -33,8 +33,18 @@ export const parseRawRecipeText = (rawText) => {
       continue;
     }
 
-    // Sub-section header in steps mode (e.g. "For Marination:", "Section 1: Sauce", "### Plating")
-    if (mode === 'steps' && (/^(section\s*\d+|for\s+[\w\s]+|###?\s*[\w\s]+|[\w\s]{3,30}:)$/i.test(line) || line.endsWith(':'))) {
+    // Sub-section header in steps mode — only match clearly-marked headers, not normal step lines
+    // Matches: "## Sauce", "Section 2:", "For the Marinade:", "Garnish:"
+    // Does NOT match: "1. Mix flour", "Step 3: Add salt", normal sentences
+    const isSubSectionHeader =
+      mode === 'steps' && (
+        /^#{1,3}\s+\S/.test(line) ||
+        /^section\s*\d+\s*:/i.test(line) ||
+        /^for\s+[\w\s]{2,25}:\s*$/i.test(line) ||
+        (/^[A-Z][\w\s]{2,30}:\s*$/.test(line) && !/^\d+[.)]\s/.test(line) && !/^step\s*\d+/i.test(line))
+      );
+
+    if (isSubSectionHeader) {
       if (currentSectionSteps.length > 0) {
         sections.push({ name: currentSectionName, steps: currentSectionSteps });
         currentSectionSteps = [];

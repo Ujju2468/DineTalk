@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import KitchenIcon, { ICON_KEYS } from '../icons/KitchenIcons';
-import VisualKitchen3D from '../components/VisualKitchen3D';
+import VisualKitchenScene from '../components/VisualKitchenScene';
 
 const TYPES = ['All', 'Spice', 'Vegetable', 'Fruit', 'Dairy', 'Herb', 'Vessel', 'Pan', 'Wok', 'Utensil', 'Equipment', 'Other'];
 const TYPE_EMOJI = { Spice: '🌶️', Vegetable: '🥕', Fruit: '🍎', Dairy: '🥛', Herb: '🌿', Vessel: '🥣', Pan: '🍳', Wok: '🥘', Utensil: '🔪', Equipment: '🔥', Other: '📦' };
 
 const Inventory = () => {
   const [items, setItems] = useState([]);
-  const [activeZone, setActiveZone] = useState('All');
   const [type, setType] = useState('All');
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [defaultZone, setDefaultZone] = useState(null);
 
   // Form states
   const [newName, setNewName] = useState('');
@@ -29,6 +29,15 @@ const Inventory = () => {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Called by the kitchen scene when user clicks "+ Add Item" inside a zone panel
+  const handleSceneAddItem = (zone) => {
+    const zoneTypeMap = { fridge: 'Vegetable', spices: 'Spice', shelves: 'Vessel' };
+    setNewType(zoneTypeMap[zone] || 'Other');
+    setDefaultZone(zone);
+    setShowAdd(true);
+    setTimeout(() => document.getElementById('inv-add-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+  };
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -69,23 +78,10 @@ const Inventory = () => {
     }
   };
 
-  // Filter items based on active 3D zone + type chip + search string
+  // Filter items by type chip + search string
   const filteredItems = items.filter(item => {
-    // 3D Zone Filter
-    if (activeZone === 'Spice Box') {
-      if (!['Spice', 'Herb'].includes(item.type)) return false;
-    } else if (activeZone === 'Fridge') {
-      if (!['Vegetable', 'Fruit', 'Dairy', 'Herb'].includes(item.type)) return false;
-    } else if (activeZone === 'Counter') {
-      if (!['Vessel', 'Pan', 'Wok', 'Utensil', 'Equipment', 'Other'].includes(item.type)) return false;
-    }
-
-    // Type Chip Filter
     if (type !== 'All' && item.type !== type) return false;
-
-    // Search Query Filter
     if (search && !item.name.toLowerCase().includes(search.toLowerCase())) return false;
-
     return true;
   });
 
@@ -97,27 +93,19 @@ const Inventory = () => {
 
   return (
     <div className="container">
-      {/* 3D / SVG Visual Kitchen Display & Zone Selector */}
-      <VisualKitchen3D
-        activeZone={activeZone}
-        onSelectZone={(zone) => {
-          setActiveZone(zone);
-          if (zone === 'Spice Box') setType('Spice');
-          else if (zone === 'Fridge') setType('Vegetable');
-          else setType('All');
-        }}
+
+      {/* ── Visual Kitchen Scene ── */}
+      <VisualKitchenScene
         items={items}
-        onAddItem={() => setShowAdd(true)}
+        onAddItem={handleSceneAddItem}
+        onEditItem={setEditingItem}
+        onDeleteItem={handleDelete}
       />
 
       <div className="toolbar">
         <div className="page-header" style={{ marginBottom: 0 }}>
-          <h1>🧺 Kitchen Items Inventory</h1>
-          <p>
-            {activeZone === 'All'
-              ? 'Showing all ingredients, vessels, & equipment shared by the family.'
-              : `Filtered by Zone: ${activeZone}`}
-          </p>
+          <h1>🧺 Kitchen Inventory</h1>
+          <p>All ingredients, vessels & equipment shared across the kitchen.</p>
         </div>
         <button className="btn btn-secondary" onClick={() => setShowAdd(!showAdd)}>
           {showAdd ? '✕ Cancel' : '+ Add Item'}
@@ -126,7 +114,7 @@ const Inventory = () => {
 
       {/* CREATE (Add Item) Form */}
       {showAdd && (
-        <form onSubmit={handleAdd} className="card" style={{ marginBottom: 24, marginTop: 14, border: '2px solid var(--accent)' }}>
+        <form id="inv-add-form" onSubmit={handleAdd} className="card" style={{ marginBottom: 24, marginTop: 14, border: '2px solid var(--accent)' }}>
           <h3 style={{ marginBottom: 14, color: 'var(--accent-dark)' }}>➕ Add to Kitchen Inventory (CRUD Create)</h3>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <div style={{ flex: 2, minWidth: 160 }}>

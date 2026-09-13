@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../utils/api';
+import KitchenIcon from '../icons/KitchenIcons';
 
+// Fallback list only — used if the real pantry can't be reached or is still empty
 const POPULAR_INGREDIENTS = [
   { name: 'Chicken', emoji: '🍗' },
   { name: 'Rice', emoji: '🍚' },
@@ -16,9 +19,27 @@ const POPULAR_INGREDIENTS = [
   { name: 'Butter', emoji: '🧈' }
 ];
 
-const IngredientMatcherWidget = ({ selectedIngredients = [], onIngredientsChange }) => {
+const IngredientMatcherWidget = ({ selectedIngredients = [], onIngredientsChange, matchCount = null }) => {
   const [customInput, setCustomInput] = useState('');
   const [expanded, setExpanded] = useState(true);
+  const [pantryItems, setPantryItems] = useState(null); // null = still loading
+
+  // Pull from the real, shared kitchen inventory so this reflects what's actually in stock
+  useEffect(() => {
+    const loadPantry = async () => {
+      try {
+        const res = await api.get('/kitchen-items');
+        setPantryItems(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        setPantryItems([]);
+      }
+    };
+    loadPantry();
+  }, []);
+
+  const availableItems = pantryItems && pantryItems.length > 0
+    ? pantryItems.map((it) => ({ name: it.name, iconKey: it.iconKey }))
+    : POPULAR_INGREDIENTS;
 
   const toggleIngredient = (ingName) => {
     const norm = ingName.trim().toLowerCase();
@@ -86,6 +107,32 @@ const IngredientMatcherWidget = ({ selectedIngredients = [], onIngredientsChange
         Tap your available kitchen ingredients to instantly match delicious recipes you can make right now.
       </p>
 
+      {/* Live Match Count Feedback */}
+      {matchCount !== null && selectedIngredients.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 16px',
+            borderRadius: 'var(--radius-sm)',
+            marginBottom: 16,
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            background: matchCount > 0 ? 'var(--accent)' : 'var(--bg-elevated)',
+            color: matchCount > 0 ? '#FFFFFF' : 'var(--muted)',
+            border: matchCount > 0 ? 'none' : '1px solid var(--border)'
+          }}
+        >
+          <span>{matchCount > 0 ? '✨' : '😕'}</span>
+          <span>
+            {matchCount > 0
+              ? `${matchCount} recipe${matchCount === 1 ? '' : 's'} you can make right now!`
+              : 'No recipes match yet — try removing an ingredient.'}
+          </span>
+        </div>
+      )}
+
       {/* Selected Pantry Bar */}
       {selectedIngredients.length > 0 && (
         <div
@@ -141,7 +188,7 @@ const IngredientMatcherWidget = ({ selectedIngredients = [], onIngredientsChange
       {expanded && (
         <div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-            {POPULAR_INGREDIENTS.map((item) => {
+            {availableItems.map((item) => {
               const isSelected = selectedIngredients.map(i => i.toLowerCase()).includes(item.name.toLowerCase());
               return (
                 <button
@@ -179,7 +226,7 @@ const IngredientMatcherWidget = ({ selectedIngredients = [], onIngredientsChange
                     }
                   }}
                 >
-                  <span>{item.emoji}</span>
+                  {item.iconKey ? <KitchenIcon iconKey={item.iconKey} size={20} /> : <span>{item.emoji}</span>}
                   <span>{item.name}</span>
                   {isSelected && <span style={{ marginLeft: 2 }}>✓</span>}
                 </button>

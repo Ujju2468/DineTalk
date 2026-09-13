@@ -1,12 +1,7 @@
 const mongoose = require('mongoose');
 
-const CATEGORIES = [
-  'Breakfast','Lunch','Dinner','Dessert','Snacks',
-  'Beverages','Appetizers','Vegan','Vegetarian','Non-Veg','Other'
-];
-
 const stepSchema = new mongoose.Schema({
-  instructionText: { type: String, required: true },
+  instructionText: { type: String, default: '' },
   timerSeconds: { type: Number, default: 0 }
 });
 
@@ -22,8 +17,7 @@ const recipeSchema = new mongoose.Schema(
     description: { type: String, default: '' },
     origin: { type: String, default: '' },
     region: { type: String, default: '' },
-    categories: [{ type: String, enum: CATEGORIES }],
-    otherCategory: { type: String, default: '' },
+    categories: [{ type: String, trim: true }],
     ingredients: [{ type: String, required: true }],
     steps: [{ type: String }],
     sections: [sectionSchema],
@@ -37,4 +31,3 @@ const recipeSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model('Recipe', recipeSchema);
-module.exports.CATEGORIES = CATEGORIES;

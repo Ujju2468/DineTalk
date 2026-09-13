@@ -18,7 +18,6 @@ const RecipeDetail = () => {
 
   // Interactive Checklist States
   const [checkedIngs, setCheckedIngs] = useState({});
-  const [completedSteps, setCompletedSteps] = useState({});
   const [activeSectionTab, setActiveSectionTab] = useState(0);
 
   const fetchRecipe = useCallback(async () => {
@@ -61,10 +60,6 @@ const RecipeDetail = () => {
     setCheckedIngs((prev) => ({ ...prev, [index]: !prev[index] }));
   };
 
-  const toggleStep = (stepKey) => {
-    setCompletedSteps((prev) => ({ ...prev, [stepKey]: !prev[stepKey] }));
-  };
-
   if (!recipe) {
     return (
       <div className="container" style={{ textAlign: 'center', paddingTop: 80 }}>
@@ -88,19 +83,6 @@ const RecipeDetail = () => {
   const displaySections = hasSections
     ? recipe.sections
     : [{ name: 'Main Instructions', steps: (recipe.steps || []).map((s) => ({ instructionText: typeof s === 'string' ? s : s.instructionText })) }];
-
-  // Calculate overall progress across all sections
-  let totalStepsCount = 0;
-  let finishedStepsCount = 0;
-
-  displaySections.forEach((sec, sIdx) => {
-    (sec.steps || []).forEach((_, stIdx) => {
-      totalStepsCount++;
-      if (completedSteps[`${sIdx}_${stIdx}`]) finishedStepsCount++;
-    });
-  });
-
-  const progressPercent = totalStepsCount > 0 ? Math.round((finishedStepsCount / totalStepsCount) * 100) : 0;
 
   return (
     <div className="container" style={{ maxWidth: 920, paddingBottom: 60 }}>
@@ -242,25 +224,13 @@ const RecipeDetail = () => {
 
       {/* Section-Wise Interactive Cooking Steps & Progress */}
       <div className="card" style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', padding: '22px 26px', marginBottom: 28 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16, borderBottom: '1.5px solid var(--border)', paddingBottom: 14 }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '1.3rem', fontFamily: 'var(--font-display)', color: 'var(--text)' }}>
-              👨‍🍳 Cooking Instructions (Section-Wise)
-            </h3>
-            <p style={{ margin: '4px 0 0', fontSize: '0.86rem', color: 'var(--muted)' }}>
-              Click step numbers to mark progress as you cook each section.
-            </p>
-          </div>
-
-          {/* Progress Bar Badge */}
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--gold)', marginBottom: 4 }}>
-              Progress: {finishedStepsCount} of {totalStepsCount} Steps ({progressPercent}%)
-            </div>
-            <div style={{ width: 160, height: 8, background: 'var(--bg)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
-              <div style={{ width: `${progressPercent}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent), var(--gold))', transition: 'width 0.3s ease' }} />
-            </div>
-          </div>
+        <div style={{ marginBottom: 16, borderBottom: '1.5px solid var(--border)', paddingBottom: 14 }}>
+          <h3 style={{ margin: 0, fontSize: '1.3rem', fontFamily: 'var(--font-display)', color: 'var(--text)' }}>
+            👨‍🍳 Cooking Instructions (Section-Wise)
+          </h3>
+          <p style={{ margin: '4px 0 0', fontSize: '0.86rem', color: 'var(--muted)' }}>
+            Read through the steps below, or launch Cooking Mode above for a guided, step-by-step walkthrough with progress tracking.
+          </p>
         </div>
 
         {/* Section Navigation Tabs */}
@@ -306,24 +276,19 @@ const RecipeDetail = () => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {(sec.steps || []).map((st, stepIdx) => {
-                    const stepKey = `${secIdx}_${stepIdx}`;
-                    const isDone = !!completedSteps[stepKey];
                     const text = typeof st === 'string' ? st : (st?.instructionText || String(st));
 
                     return (
                       <div
                         key={stepIdx}
-                        onClick={() => toggleStep(stepKey)}
                         style={{
                           display: 'flex',
                           gap: 16,
                           alignItems: 'flex-start',
                           padding: '12px 16px',
                           borderRadius: 'var(--radius-sm)',
-                          background: isDone ? 'var(--surface)' : 'var(--bg-elevated)',
-                          border: isDone ? '1.5px solid var(--accent)' : '1px solid var(--border)',
-                          cursor: 'pointer',
-                          transition: 'all var(--transition)'
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border)'
                         }}
                       >
                         {/* Step Number Circle */}
@@ -332,8 +297,8 @@ const RecipeDetail = () => {
                             width: 32,
                             height: 32,
                             borderRadius: '50%',
-                            background: isDone ? 'var(--accent)' : 'var(--surface)',
-                            color: isDone ? '#FFFFFF' : 'var(--gold)',
+                            background: 'var(--surface)',
+                            color: 'var(--gold)',
                             border: '1.5px solid var(--accent)',
                             display: 'flex',
                             alignItems: 'center',
@@ -343,12 +308,12 @@ const RecipeDetail = () => {
                             flexShrink: 0
                           }}
                         >
-                          {isDone ? '✓' : stepIdx + 1}
+                          {stepIdx + 1}
                         </div>
 
                         {/* Instruction Content */}
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '0.98rem', color: isDone ? 'var(--muted)' : 'var(--text)', textDecoration: isDone ? 'line-through' : 'none', lineHeight: 1.6 }}>
+                          <div style={{ fontSize: '0.98rem', color: 'var(--text)', lineHeight: 1.6 }}>
                             {text}
                           </div>
                         </div>

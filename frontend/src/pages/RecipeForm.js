@@ -6,9 +6,6 @@ import CookingStage from '../components/CookingStage';
 import KitchenTray from '../components/KitchenTray';
 import SmartRecipeParserModal from '../components/SmartRecipeParserModal';
 
-const CATEGORIES = ['Breakfast','Lunch','Dinner','Dessert','Snacks','Beverages','Appetizers','Vegan','Vegetarian','Non-Veg','Other'];
-const CAT_EMOJIS = { Breakfast:'🍳',Lunch:'🥗',Dinner:'🍽',Dessert:'🍰',Snacks:'🍿',Beverages:'🥤',Appetizers:'🥟',Vegan:'🌱',Vegetarian:'🥦','Non-Veg':'🍖',Other:'🏷' };
-
 const STEPS_META = [
   { id:'info',        label:'Basics',      emoji:'📝' },
   { id:'origin',      label:'Origin',      emoji:'🌍' },
@@ -21,7 +18,7 @@ const STEPS_META = [
 
 const emptyForm = {
   title:'', description:'', origin:'', region:'',
-  categories:[], otherCategory:'',
+  categories:[],
   cookTime:'', servings:'',
   imageMode:'url', imageUrl:'', imageFile:null, imagePreview:'',
   ingredients:[], steps:[''],
@@ -55,7 +52,7 @@ const RecipeForm = () => {
       setForm({
         title: r.title, description: r.description,
         origin: r.origin||'', region: r.region||'',
-        categories: r.categories||[], otherCategory: r.otherCategory||'',
+        categories: r.categories||[],
         cookTime: r.cookTime||'', servings: r.servings||'',
         imageMode:'url', imageUrl: r.image||'', imageFile:null, imagePreview: r.image||'',
         ingredients: r.ingredients||[], steps: r.steps||[''],
@@ -67,6 +64,38 @@ const RecipeForm = () => {
   }, [id, isEdit]);
 
   useEffect(() => { loadEdit(); }, [loadEdit]);
+
+  // Categories are global & shared — same source as the Recipes browse page
+  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [showNewCatInput, setShowNewCatInput] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const res = await api.get('/categories');
+        setCategoryOptions(res.data);
+      } catch (err) {
+        console.warn('Could not load categories');
+      }
+    };
+    loadCategories();
+  }, []);
+
+  const handleAddNewCategory = async (e) => {
+    e.preventDefault();
+    const name = newCatName.trim();
+    if (!name) return;
+    try {
+      const res = await api.post('/categories', { name });
+      setCategoryOptions((prev) => [...prev, res.data]);
+      toggleCat(res.data.name);
+      setNewCatName('');
+      setShowNewCatInput(false);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Could not add category');
+    }
+  };
 
   const set = (field, val) => setForm(f => ({ ...f, [field]: val }));
 
@@ -245,7 +274,6 @@ const RecipeForm = () => {
         title: form.title, description: form.description,
         origin: form.origin, region: form.region,
         categories: form.categories.length ? form.categories : ['Other'],
-        otherCategory: form.otherCategory,
         cookTime: Number(form.cookTime)||0,
         servings: Number(form.servings)||1,
         image: form.imagePreview || form.imageUrl || '',
@@ -349,22 +377,34 @@ const RecipeForm = () => {
                 <p>Pick as many as apply — a dish can belong to multiple categories!</p>
               </div>
               <div className="multi-cat-grid">
-                {CATEGORIES.map(cat => (
-                  <div key={cat} className={`cat-toggle ${form.categories.includes(cat) ? 'selected' : ''}`} onClick={() => toggleCat(cat)}>
-                    {CAT_EMOJIS[cat]} {cat}
+                {categoryOptions.map(cat => (
+                  <div key={cat._id || cat.name} className={`cat-toggle ${form.categories.includes(cat.name) ? 'selected' : ''}`} onClick={() => toggleCat(cat.name)}>
+                    {cat.emoji || '🏷'} {cat.name}
                   </div>
                 ))}
-              </div>
-              {form.categories.includes('Other') && (
-                <div style={{ marginTop: 16 }}>
-                  <label>Specify "Other" category</label>
-                  <input value={form.otherCategory} onChange={e => set('otherCategory', e.target.value)}
-                    placeholder="e.g. Street Food, Fusion, BBQ, Pickle..." />
+                <div
+                  className="cat-toggle"
+                  onClick={() => setShowNewCatInput(!showNewCatInput)}
+                  style={{ borderStyle: 'dashed', color: 'var(--gold)', borderColor: 'var(--gold)' }}
+                >
+                  {showNewCatInput ? '✕ Cancel' : '+ New Category'}
                 </div>
+              </div>
+              {showNewCatInput && (
+                <form onSubmit={handleAddNewCategory} style={{ marginTop: 14, display: 'flex', gap: 8, maxWidth: 380 }}>
+                  <input
+                    value={newCatName}
+                    onChange={e => setNewCatName(e.target.value)}
+                    placeholder="e.g. Street Food, Fusion, BBQ..."
+                    autoFocus
+                    required
+                  />
+                  <button className="btn btn-sm" type="submit" style={{ flexShrink: 0 }}>+ Add</button>
+                </form>
               )}
               {form.categories.length > 0 && (
                 <p style={{ marginTop:14, fontSize:'0.85rem', color:'var(--green)' }}>
-                  ✓ Selected: {form.categories.map(c => c === 'Other' && form.otherCategory ? form.otherCategory : c).join(', ')}
+                  ✓ Selected: {form.categories.join(', ')}
                 </p>
               )}
             </div>

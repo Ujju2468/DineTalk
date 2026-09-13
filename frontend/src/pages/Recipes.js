@@ -11,6 +11,7 @@ const DEFAULT_CATEGORIES = ['All', 'Breakfast', 'Lunch', 'Dinner', 'Dessert', 'S
 const Recipes = () => {
   const [recipes, setRecipes] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [categoryIds, setCategoryIds] = useState({});
   const [category, setCategory] = useState('All');
   const [search, setSearch] = useState('');
   const [originFilter, setOriginFilter] = useState('All');
@@ -20,6 +21,9 @@ const Recipes = () => {
   const [selectedIngredients, setSelectedIngredients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [suggestionPool, setSuggestionPool] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Category CRUD state
   const [showAddCat, setShowAddCat] = useState(false);
@@ -31,6 +35,7 @@ const Recipes = () => {
       const res = await api.get('/categories');
       if (Array.isArray(res.data) && res.data.length > 0) {
         setCategories(res.data.map((c) => c.name));
+        setCategoryIds(Object.fromEntries(res.data.map((c) => [c.name, c._id])));
       }
     } catch (err) {
       console.warn('Fallback to local categories');
@@ -41,6 +46,41 @@ const Recipes = () => {
     fetchCategories();
   }, []);
 
+  // Debounce the raw search input so we don't hit the API on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Build a lightweight local vocabulary (titles + ingredient names) once,
+  // used purely for instant client-side autocomplete suggestions
+  useEffect(() => {
+    const loadSuggestionPool = async () => {
+      try {
+        const res = await api.get('/recipes');
+        const seen = new Set();
+        const pool = [];
+        res.data.forEach((r) => {
+          const terms = [
+            r.title,
+            ...((r.ingredients || []).map((i) => (typeof i === 'string' ? i : i.name)))
+          ];
+          terms.filter(Boolean).forEach((term) => {
+            const key = term.trim().toLowerCase();
+            if (key && !seen.has(key)) {
+              seen.add(key);
+              pool.push(term.trim());
+            }
+          });
+        });
+        setSuggestionPool(pool);
+      } catch (err) {
+        console.warn('Could not build search suggestions');
+      }
+    };
+    loadSuggestionPool();
+  }, []);
+
   const fetchRecipes = useCallback(async () => {
     setLoading(true);
     try {
@@ -48,7 +88,7 @@ const Recipes = () => {
       if (category !== 'All') params.category = category;
       if (originFilter !== 'All') params.origin = originFilter;
       if (maxCookTime > 0) params.maxCookTime = maxCookTime;
-      if (search.trim()) params.search = search.trim();
+      if (debouncedSearch) params.search = debouncedSearch;
       const res = await api.get('/recipes', { params });
       setRecipes(res.data);
     } catch (err) {
@@ -56,7 +96,7 @@ const Recipes = () => {
     } finally {
       setLoading(false);
     }
-  }, [category, originFilter, maxCookTime, search]);
+  }, [category, originFilter, maxCookTime, debouncedSearch]);
 
   useEffect(() => {
     fetchRecipes();
@@ -69,6 +109,7 @@ const Recipes = () => {
     try {
       const res = await api.post('/categories', { name });
       setCategories((prev) => [...prev, res.data.name]);
+      setCategoryIds((prev) => ({ ...prev, [res.data.name]: res.data._id }));
       setCategory(res.data.name);
       setNewCatName('');
       setShowAddCat(false);
@@ -84,8 +125,14 @@ const Recipes = () => {
       return;
     }
     if (!window.confirm(`Delete category "${catToDelete}" globally?`)) return;
-    setCategories((prev) => prev.filter((c) => c !== catToDelete));
-    if (category === catToDelete) setCategory('All');
+    const id = categoryIds[catToDelete];
+    try {
+      if (id) await api.delete(`/categories/${id}`);
+      setCategories((prev) => prev.filter((c) => c !== catToDelete));
+      if (category === catToDelete) setCategory('All');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Could not delete category');
+    }
   };
 
   // Filter recipes locally by Pantry Ingredients
@@ -108,6 +155,12 @@ const Recipes = () => {
   });
 
   const activeFiltersCount = (category !== 'All' ? 1 : 0) + (originFilter !== 'All' ? 1 : 0) + (maxCookTime > 0 ? 1 : 0) + (search ? 1 : 0);
+
+  // Case-insensitive autocomplete suggestions from recipe titles & ingredients
+  const searchTrimmed = search.trim().toLowerCase();
+  const suggestions = searchTrimmed.length > 0
+    ? suggestionPool.filter((term) => term.toLowerCase().includes(searchTrimmed)).slice(0, 6)
+    : [];
 
   const handleClearAllFilters = () => {
     setCategory('All');
@@ -137,32 +190,53 @@ const Recipes = () => {
         }}
       >
         {/* Seamless Merged Search Input & Filter Button */}
-        <div className="merged-search-filter-bar">
-          <div className="merged-search-input-wrap">
-            <span className="search-icon">🔍</span>
-            <input
-              placeholder="Search recipe, cuisine, ingredients..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        <div style={{ position: 'relative', flex: '1 1 auto', maxWidth: 540 }}>
+          <div className="merged-search-filter-bar">
+            <div className="merged-search-input-wrap">
+              <span className="search-icon">🔍</span>
+              <input
+                placeholder="Search recipe, cuisine, ingredients..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setShowSuggestions(false)}
+                autoComplete="off"
+              />
+            </div>
+
+            <button
+              type="button"
+              className="merged-filter-btn"
+              onClick={() => setShowFilterDrawer(true)}
+              style={{
+                background: activeFiltersCount > 0 ? 'var(--accent)' : undefined,
+                color: activeFiltersCount > 0 ? '#FFFFFF' : undefined
+              }}
+            >
+              <span>🎛 Filters</span>
+              {activeFiltersCount > 0 && (
+                <span className="badge" style={{ background: 'var(--gold)', color: '#FFFFFF', fontSize: '0.72rem' }}>
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
           </div>
 
-          <button
-            type="button"
-            className="merged-filter-btn"
-            onClick={() => setShowFilterDrawer(true)}
-            style={{
-              background: activeFiltersCount > 0 ? 'var(--accent)' : undefined,
-              color: activeFiltersCount > 0 ? '#FFFFFF' : undefined
-            }}
-          >
-            <span>🎛 Filters</span>
-            {activeFiltersCount > 0 && (
-              <span className="badge" style={{ background: 'var(--gold)', color: '#FFFFFF', fontSize: '0.72rem' }}>
-                {activeFiltersCount}
-              </span>
-            )}
-          </button>
+          {/* Autocomplete Suggestions Dropdown (case-insensitive match on titles + ingredients) */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="search-suggestions-dropdown">
+              {suggestions.map((term) => (
+                <div
+                  key={term}
+                  className="search-suggestion-item"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { setSearch(term); setShowSuggestions(false); }}
+                >
+                  🔍 {term}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Action Controls: Pantry Matcher Toggle & View Mode Toggle */}
@@ -222,6 +296,7 @@ const Recipes = () => {
           <IngredientMatcherWidget
             selectedIngredients={selectedIngredients}
             onIngredientsChange={setSelectedIngredients}
+            matchCount={selectedIngredients.length > 0 ? filteredRecipes.length : null}
           />
         </div>
       )}
