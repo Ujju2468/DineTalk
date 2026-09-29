@@ -1,45 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import api from '../utils/api';
-import KitchenIcon from '../icons/KitchenIcons';
-
-// Fallback list only — used if the real pantry can't be reached or is still empty
-const POPULAR_INGREDIENTS = [
-  { name: 'Chicken', emoji: '🍗' },
-  { name: 'Rice', emoji: '🍚' },
-  { name: 'Eggs', emoji: '🥚' },
-  { name: 'Tomatoes', emoji: '🍅' },
-  { name: 'Onions', emoji: '🧅' },
-  { name: 'Potatoes', emoji: '🥔' },
-  { name: 'Yogurt', emoji: '🥣' },
-  { name: 'Flour', emoji: '🌾' },
-  { name: 'Garlic', emoji: '🧄' },
-  { name: 'Cheese', emoji: '🧀' },
-  { name: 'Paneer', emoji: '🧀' },
-  { name: 'Pasta', emoji: '🍝' },
-  { name: 'Butter', emoji: '🧈' }
-];
+import React, { useState } from 'react';
+import PantryPicker from './PantryPicker';
 
 const IngredientMatcherWidget = ({ selectedIngredients = [], onIngredientsChange, matchCount = null }) => {
-  const [customInput, setCustomInput] = useState('');
   const [expanded, setExpanded] = useState(true);
-  const [pantryItems, setPantryItems] = useState(null); // null = still loading
-
-  // Pull from the real, shared kitchen inventory so this reflects what's actually in stock
-  useEffect(() => {
-    const loadPantry = async () => {
-      try {
-        const res = await api.get('/kitchen-items');
-        setPantryItems(Array.isArray(res.data) ? res.data : []);
-      } catch (err) {
-        setPantryItems([]);
-      }
-    };
-    loadPantry();
-  }, []);
-
-  const availableItems = pantryItems && pantryItems.length > 0
-    ? pantryItems.map((it) => ({ name: it.name, iconKey: it.iconKey }))
-    : POPULAR_INGREDIENTS;
 
   const toggleIngredient = (ingName) => {
     const norm = ingName.trim().toLowerCase();
@@ -48,13 +11,6 @@ const IngredientMatcherWidget = ({ selectedIngredients = [], onIngredientsChange
     } else {
       onIngredientsChange([...selectedIngredients, ingName.trim()]);
     }
-  };
-
-  const handleAddCustom = (e) => {
-    e.preventDefault();
-    if (!customInput.trim()) return;
-    toggleIngredient(customInput.trim());
-    setCustomInput('');
   };
 
   return (
@@ -184,69 +140,14 @@ const IngredientMatcherWidget = ({ selectedIngredients = [], onIngredientsChange
         </div>
       )}
 
-      {/* Ingredient Chip Selection */}
+      {/* Same category-grouped picker as the Kitchen Inventory page — spices,
+          vegetables, fruits, dairy, etc. — pulled live from /kitchen-items */}
       {expanded && (
-        <div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-            {availableItems.map((item) => {
-              const isSelected = selectedIngredients.map(i => i.toLowerCase()).includes(item.name.toLowerCase());
-              return (
-                <button
-                  key={item.name}
-                  type="button"
-                  onClick={() => toggleIngredient(item.name)}
-                  style={{
-                    fontSize: '0.84rem',
-                    fontWeight: 700,
-                    padding: '7px 15px',
-                    borderRadius: 24,
-                    cursor: 'pointer',
-                    background: isSelected ? 'var(--accent)' : 'var(--bg-elevated)',
-                    color: isSelected ? '#FFFFFF' : 'var(--text)',
-                    border: '1.5px solid',
-                    borderColor: isSelected ? 'var(--accent-hover)' : 'var(--border)',
-                    boxShadow: isSelected ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.background = 'var(--surface-hover)';
-                      e.currentTarget.style.borderColor = 'var(--accent)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.background = 'var(--bg-elevated)';
-                      e.currentTarget.style.borderColor = 'var(--border)';
-                      e.currentTarget.style.transform = 'none';
-                    }
-                  }}
-                >
-                  {item.iconKey ? <KitchenIcon iconKey={item.iconKey} size={20} /> : <span>{item.emoji}</span>}
-                  <span>{item.name}</span>
-                  {isSelected && <span style={{ marginLeft: 2 }}>✓</span>}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Add Custom Extra Ingredient Form */}
-          <form onSubmit={handleAddCustom} style={{ display: 'flex', gap: 8, maxWidth: 400 }}>
-            <input
-              placeholder="Add extra ingredient (e.g. Cinnamon, Ginger)..."
-              value={customInput}
-              onChange={(e) => setCustomInput(e.target.value)}
-              style={{ fontSize: '0.85rem', padding: '9px 16px', borderRadius: 20 }}
-            />
-            <button className="btn btn-sm" type="submit" style={{ flexShrink: 0, borderRadius: 20 }}>
-              + Add to Pantry
-            </button>
-          </form>
-        </div>
+        <PantryPicker
+          selectedNames={selectedIngredients}
+          onItemClick={(item) => toggleIngredient(item.name)}
+          helperText="Tap items you have on hand. Anything new you add here is saved to your shared Kitchen Inventory too."
+        />
       )}
     </div>
   );

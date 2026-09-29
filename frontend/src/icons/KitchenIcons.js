@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 /**
  * Lightweight inline SVG icon set for the Kitchen Inventory.
@@ -176,8 +176,66 @@ const ICONS = {
   )
 };
 
+const ICON_CATEGORY = {
+  // vegetables
+  onion: 'vegetable', tomato: 'vegetable', potato: 'vegetable', carrot: 'vegetable',
+  garlic: 'vegetable', capsicum: 'vegetable', spinach: 'vegetable', cauliflower: 'vegetable',
+  cabbage: 'vegetable', broccoli: 'vegetable',
+  // fruits
+  lemon: 'fruit', mango: 'fruit', banana: 'fruit', apple: 'fruit', coconut: 'fruit',
+  // spices
+  turmeric: 'spice', chilli: 'spice', cumin: 'spice', pepper: 'spice', salt: 'spice',
+  cinnamon: 'spice', mustardseeds: 'spice',
+  // herbs
+  coriander: 'herb', mint: 'herb', curryleaves: 'herb', basil: 'herb', ginger: 'herb',
+  // dairy
+  milk: 'dairy', butter: 'dairy', paneer: 'dairy', yogurt: 'dairy', cheese: 'dairy', eggs: 'dairy',
+  // vessels
+  bowl: 'vessel', pot: 'vessel', pressurecooker: 'vessel',
+  // pans
+  fryingpan: 'pan', tawa: 'pan', saucepan: 'pan',
+  // wok
+  kadai: 'wok',
+  // utensils
+  spatula: 'utensil', ladle: 'utensil', whisk: 'utensil', knife: 'utensil',
+  choppingboard: 'utensil', rollingpin: 'utensil', grater: 'utensil',
+  // equipment
+  gasstove: 'equipment', induction: 'equipment', oven: 'equipment', mixer: 'equipment',
+  // fallback
+  default: 'other'
+};
+
+/**
+ * KitchenIcon
+ * -----------
+ * Tries a real photo first — /images/items/{category}/{iconKey}.jpg — and
+ * falls back automatically to the hand-drawn SVG if that file doesn't exist
+ * yet. This means you can drop real photos in one item at a time (see
+ * frontend/scripts/optimize-category-images.js) without touching any code;
+ * anything you haven't added a photo for just keeps using the SVG icon.
+ */
 const KitchenIcon = ({ iconKey, size = 40 }) => {
-  const svg = ICONS[iconKey] || ICONS.default;
+  const key = ICONS[iconKey] ? iconKey : 'default';
+  const category = ICON_CATEGORY[key] || 'other';
+  const svg = ICONS[key];
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (!imgFailed) {
+    return (
+      <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-elevated)', flexShrink: 0 }}>
+        <img
+          src={`/images/items/${category}/${key}.jpg`}
+          alt={key}
+          width={size}
+          height={size}
+          loading="lazy"
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={() => setImgFailed(true)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={{ width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
       {React.cloneElement(svg, { width: size, height: size })}

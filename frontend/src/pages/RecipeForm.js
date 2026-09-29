@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import IngredientStore from '../components/IngredientStore';
-import CookingStage from '../components/CookingStage';
-import KitchenTray from '../components/KitchenTray';
+import PantryPicker from '../components/PantryPicker';
 import SmartRecipeParserModal from '../components/SmartRecipeParserModal';
+import { TYPE_EMOJI } from '../constants/kitchenTypes';
+import { resizeImageFile } from '../utils/imageResizer';
 
 const STEPS_META = [
   { id:'info',        label:'Basics',      emoji:'📝' },
@@ -34,11 +34,11 @@ const RecipeForm = () => {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
-  const [dragOver, setDragOver] = useState(false);
   const [manualInput, setManualInput] = useState('');
-  const [ingredientMode, setIngredientMode] = useState('list'); // 'list' | 'kitchen'
   const [showParserModal, setShowParserModal] = useState(false);
-  const stageRef = useRef(null);
+  const [imgProcessing, setImgProcessing] = useState(false);
+  const [imgError, setImgError] = useState('');
+  const [imgStats, setImgStats] = useState(null);
   const fileRef = useRef();
 
   const loadEdit = useCallback(async () => {
@@ -99,6 +99,10 @@ const RecipeForm = () => {
 
   const set = (field, val) => setForm(f => ({ ...f, [field]: val }));
 
+  // Strip a leading emoji/symbol so the PantryPicker can tell which of the
+  // shared kitchen items are already on this recipe's ingredient list.
+  const bareIngredientNames = form.ingredients.map(i => i.replace(/^[^\w]+\s*/u, '').trim());
+
   const toggleCat = (cat) => {
     setForm(f => ({
       ...f,
@@ -108,21 +112,18 @@ const RecipeForm = () => {
     }));
   };
 
-  const addIngredientFromStore = (ing) => {
-    const label = `${ing.emoji} ${ing.name}`;
+  // Toggle an item from the shared Kitchen Inventory picker into/out of the
+  // recipe's ingredient list (click to add, click again on the highlighted
+  // card to remove — same interaction the Pantry Matcher uses).
+  const togglePantryIngredient = (item) => {
+    const label = `${TYPE_EMOJI[item.type] || '🥄'} ${item.name}`;
     setForm(f => {
-      if (f.ingredients.includes(label)) return f;
+      const already = f.ingredients.some(i => i.toLowerCase() === label.toLowerCase() || i.toLowerCase().endsWith(item.name.toLowerCase()));
+      if (already) {
+        return { ...f, ingredients: f.ingredients.filter(i => !(i.toLowerCase() === label.toLowerCase() || i.toLowerCase().endsWith(item.name.toLowerCase()))) };
+      }
       return { ...f, ingredients: [...f.ingredients, label] };
     });
-  };
-
-  const handleDropZone = (e) => {
-    e.preventDefault(); setDragOver(false);
-    const name = e.dataTransfer.getData('ingredient');
-    const emoji = e.dataTransfer.getData('ingredientEmoji') || '🥄';
-    if (!name) return;
-    const label = `${emoji} ${name}`;
-    setForm(f => f.ingredients.includes(label) ? f : { ...f, ingredients: [...f.ingredients, label] });
   };
 
   const removeIngredient = (idx) => {
@@ -134,17 +135,6 @@ const RecipeForm = () => {
     if (!val) return;
     setForm(f => ({ ...f, ingredients: [...f.ingredients, val] }));
     setManualInput('');
-  };
-
-  const addFromKitchen = (item) => {
-    const label = `[${item.iconKey}] ${item.name}`;
-    setForm(f => f.ingredients.includes(label) ? f : { ...f, ingredients: [...f.ingredients, label] });
-  };
-
-  const parseKitchenLabel = (label) => {
-    const match = /^\[([a-z]+)\] (.+)$/.exec(label);
-    if (!match) return null;
-    return { iconKey: match[1], name: match[2] };
   };
 
   // Section management helpers
@@ -207,11 +197,20 @@ const RecipeForm = () => {
     });
   };
 
-  const handleFileChange = (file) => {
+  const handleFileChange = async (file) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = e => setForm(f => ({ ...f, imageFile: file, imagePreview: e.target.result }));
-    reader.readAsDataURL(file);
+    setImgError('');
+    setImgStats(null);
+    setImgProcessing(true);
+    try {
+      const result = await resizeImageFile(file);
+      setForm(f => ({ ...f, imageFile: file, imagePreview: result.dataUrl }));
+      setImgStats(result);
+    } catch (err) {
+      setImgError(err.message || 'Could not process that image — try a different file.');
+    } finally {
+      setImgProcessing(false);
+    }
   };
 
   const getCleanStepsFromSections = () => {
@@ -447,16 +446,29 @@ const RecipeForm = () => {
                     placeholder="https://images.unsplash.com/photo-..." />
                 </div>
               ) : (
-                <div className="file-drop-area" onClick={() => fileRef.current?.click()}>
+                <div className="file-drop-area" onClick={() => !imgProcessing && fileRef.current?.click()}>
                   <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => handleFileChange(e.target.files[0])} />
-                  <div style={{ fontSize:'2.5rem' }}>📷</div>
-                  <p style={{ fontWeight:700, margin:'8px 0 4px' }}>Click to select a photo</p>
-                  <p style={{ fontSize:'0.8rem', color:'var(--muted)' }}>PNG, JPG, WEBP supported</p>
+                  <div style={{ fontSize:'2.5rem' }}>{imgProcessing ? '⏳' : '📷'}</div>
+                  <p style={{ fontWeight:700, margin:'8px 0 4px' }}>
+                    {imgProcessing ? 'Optimizing your photo…' : 'Click to select a photo'}
+                  </p>
+                  <p style={{ fontSize:'0.8rem', color:'var(--muted)' }}>
+                    PNG, JPG, WEBP — up to 5MB, auto-resized to keep things fast
+                  </p>
                 </div>
+              )}
+              {imgError && (
+                <p style={{ color: 'var(--danger)', fontSize: '0.85rem', fontWeight: 700, marginTop: 8 }}>⚠️ {imgError}</p>
               )}
               {form.imagePreview && (
                 <div className="img-preview-box" style={{ marginTop:16 }}>
                   <img src={form.imagePreview} alt="Preview" onError={() => set('imagePreview','')} />
+                  {imgStats && (
+                    <p style={{ fontSize: '0.76rem', color: 'var(--muted)', marginTop: 6 }}>
+                      Optimized: {(imgStats.originalBytes / 1024).toFixed(0)}KB → {(imgStats.bytes / 1024).toFixed(0)}KB
+                      {' '}({imgStats.width}×{imgStats.height})
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -467,105 +479,51 @@ const RecipeForm = () => {
             <div>
               <div className="wizard-panel-header">
                 <h2>🥕 What ingredients are needed?</h2>
-                <p>Build your ingredient list using our Store, Visual Kitchen, or custom text.</p>
+                <p>Type ingredients directly, or click them from your Kitchen Inventory below.</p>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${ingredientMode === 'list' ? 'btn-primary' : 'btn-outline'}`}
-                  onClick={() => setIngredientMode('list')}
-                >
-                  📋 List & Store Picker
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${ingredientMode === 'kitchen' ? 'btn-primary' : 'btn-outline'}`}
-                  onClick={() => setIngredientMode('kitchen')}
-                >
-                  🍳 Visual Kitchen Interactive Pan
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <input
+                  placeholder="Type custom ingredient (e.g. 2 tbsp Olive Oil)..."
+                  value={manualInput}
+                  onChange={(e) => setManualInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addManual(); } }}
+                />
+                <button type="button" className="btn btn-sm" onClick={addManual}>
+                  + Add
                 </button>
               </div>
 
-              {ingredientMode === 'list' && (
-                <div>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                    <input
-                      placeholder="Type custom ingredient (e.g. 2 tbsp Olive Oil)..."
-                      value={manualInput}
-                      onChange={(e) => setManualInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addManual(); } }}
-                    />
-                    <button type="button" className="btn btn-sm" onClick={addManual}>
-                      + Add
-                    </button>
-                  </div>
-
-                  <div
-                    className={`drop-zone-area ${dragOver ? 'drag-over' : ''}`}
-                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={handleDropZone}
-                  >
-                    <p style={{ fontWeight: 800, margin: 0, color: 'var(--text)' }}>
-                      🛒 Added Ingredients ({form.ingredients.length})
-                    </p>
-                    {form.ingredients.length === 0 ? (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '8px 0 0' }}>
-                        No ingredients added yet. Click items below or type above!
-                      </p>
-                    ) : (
-                      <div className="dropped-ingredients" style={{ marginTop: 12 }}>
-                        {form.ingredients.map((ing, i) => (
-                          <div key={i} className="dropped-chip">
-                            <span>{ing}</span>
-                            <button className="remove-x" onClick={() => removeIngredient(i)}>×</button>
-                          </div>
-                        ))}
+              <div className="drop-zone-area">
+                <p style={{ fontWeight: 800, margin: 0, color: 'var(--text)' }}>
+                  🛒 Added Ingredients ({form.ingredients.length})
+                </p>
+                {form.ingredients.length === 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '8px 0 0' }}>
+                    No ingredients added yet. Click items below or type above!
+                  </p>
+                ) : (
+                  <div className="dropped-ingredients" style={{ marginTop: 12 }}>
+                    {form.ingredients.map((ing, i) => (
+                      <div key={i} className="dropped-chip">
+                        <span>{ing}</span>
+                        <button className="remove-x" onClick={() => removeIngredient(i)}>×</button>
                       </div>
-                    )}
+                    ))}
                   </div>
+                )}
+              </div>
 
-                  <div style={{ marginTop: 20 }}>
-                    <p style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 10 }}>
-                      Popular Store Items — Click to add
-                    </p>
-                    <IngredientStore onIngredientClick={addIngredientFromStore} onSelect={addIngredientFromStore} />
-                  </div>
-                </div>
-              )}
-
-              {ingredientMode === 'kitchen' && (
-                <div>
-                  <CookingStage
-                    ref={stageRef}
-                    onAdd={addFromKitchen}
-                    addedItems={form.ingredients
-                      .map(parseKitchenLabel)
-                      .filter(Boolean)}
-                  />
-                  <div style={{ marginTop:20, borderTop:'2px solid var(--border)', paddingTop:16 }}>
-                    <p style={{ fontSize:'0.82rem', fontWeight:700, color:'var(--muted)', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.8px' }}>
-                      🧺 Kitchen Inventory — Click or drag into the pan
-                    </p>
-                    <KitchenTray onItemActivate={(item, el) => stageRef.current?.cook(item, el)} />
-                  </div>
-
-                  {form.ingredients.length > 0 && (
-                    <div style={{ marginTop:16 }}>
-                      <p style={{ fontSize:'0.78rem', color:'var(--muted)', marginBottom:8 }}>Full ingredient list so far:</p>
-                      <div className="dropped-ingredients" style={{ minHeight: 'auto' }}>
-                        {form.ingredients.map((ing, i) => (
-                          <div key={i} className="dropped-chip">
-                            <span>{ing}</span>
-                            <button className="remove-x" onClick={() => removeIngredient(i)}>×</button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              <div style={{ marginTop: 20 }}>
+                <p style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 10 }}>
+                  From Your Kitchen Inventory — Click to add
+                </p>
+                <PantryPicker
+                  selectedNames={bareIngredientNames}
+                  onItemClick={togglePantryIngredient}
+                  helperText="Same spices, vegetables, fruits & more as your Kitchen Inventory — click any card to add it here."
+                />
+              </div>
             </div>
           )}
 

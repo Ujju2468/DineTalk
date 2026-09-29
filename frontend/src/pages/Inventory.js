@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import KitchenIcon, { ICON_KEYS } from '../icons/KitchenIcons';
-import VisualKitchenScene from '../components/VisualKitchenScene';
-
-const TYPES = ['All', 'Spice', 'Vegetable', 'Fruit', 'Dairy', 'Herb', 'Vessel', 'Pan', 'Wok', 'Utensil', 'Equipment', 'Other'];
-const TYPE_EMOJI = { Spice: '🌶️', Vegetable: '🥕', Fruit: '🍎', Dairy: '🥛', Herb: '🌿', Vessel: '🥣', Pan: '🍳', Wok: '🥘', Utensil: '🔪', Equipment: '🔥', Other: '📦' };
+import KitchenZones from '../components/KitchenZones';
+import { TYPES, TYPE_EMOJI } from '../constants/kitchenTypes';
 
 const Inventory = () => {
   const [items, setItems] = useState([]);
@@ -47,6 +45,7 @@ const Inventory = () => {
       setItems(prev => [...prev, res.data]);
       setNewName('');
       setShowAdd(false);
+      setDefaultZone(null);
     } catch (err) {
       if (err.response?.data?.item) alert(`"${newName}" already exists in inventory!`);
     }
@@ -91,11 +90,35 @@ const Inventory = () => {
     return acc;
   }, {});
 
+  // Dot side-nav: jump straight to a category's section in the list below.
+  // Switches back to "All" first so every section actually exists to scroll to.
+  const [activeDot, setActiveDot] = useState(null);
+  const scrollToSection = (t) => {
+    setType('All');
+    setActiveDot(t);
+    setTimeout(() => {
+      document.getElementById(`section-${t}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  };
+
   return (
     <div className="container">
 
-      {/* ── Visual Kitchen Scene ── */}
-      <VisualKitchenScene
+      {/* ── Category dot side-nav — hover for name, click to jump to that section ── */}
+      <div className="zone-dotnav">
+        {TYPES.filter(t => t !== 'All').map(t => (
+          <div
+            key={t}
+            className={`zone-dot${activeDot === t ? ' active' : ''}`}
+            onClick={() => scrollToSection(t)}
+          >
+            <span className="zone-dot-tooltip">{TYPE_EMOJI[t]} {t}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Interactive Kitchen Photo — click fridge / shelves / spice drawer ── */}
+      <KitchenZones
         items={items}
         onAddItem={handleSceneAddItem}
         onEditItem={setEditingItem}
@@ -107,7 +130,7 @@ const Inventory = () => {
           <h1>🧺 Kitchen Inventory</h1>
           <p>All ingredients, vessels & equipment shared across the kitchen.</p>
         </div>
-        <button className="btn btn-secondary" onClick={() => setShowAdd(!showAdd)}>
+        <button className="btn btn-secondary" onClick={() => { setShowAdd(!showAdd); if (showAdd) setDefaultZone(null); }}>
           {showAdd ? '✕ Cancel' : '+ Add Item'}
         </button>
       </div>
@@ -116,6 +139,11 @@ const Inventory = () => {
       {showAdd && (
         <form id="inv-add-form" onSubmit={handleAdd} className="card" style={{ marginBottom: 24, marginTop: 14, border: '2px solid var(--accent)' }}>
           <h3 style={{ marginBottom: 14, color: 'var(--accent-dark)' }}>➕ Add to Kitchen Inventory (CRUD Create)</h3>
+          {defaultZone && (
+            <p style={{ margin: '-8px 0 14px', fontSize: '0.82rem', fontWeight: 700, color: 'var(--accent)' }}>
+              Adding to your {defaultZone === 'fridge' ? 'Fridge' : defaultZone === 'spices' ? 'Spice Drawer' : 'Shelves'} zone
+            </p>
+          )}
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <div style={{ flex: 2, minWidth: 160 }}>
               <label>Item Name *</label>
@@ -201,7 +229,7 @@ const Inventory = () => {
         </div>
       ) : type === 'All' ? (
         Object.keys(grouped).sort().map(t => (
-          <div key={t} style={{ marginBottom: 28 }}>
+          <div key={t} id={`section-${t}`} style={{ marginBottom: 28, scrollMarginTop: 100 }}>
             <h3 style={{ marginBottom: 14, color: 'var(--accent-dark)', borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
               {TYPE_EMOJI[t]} {t} ({grouped[t].length})
             </h3>

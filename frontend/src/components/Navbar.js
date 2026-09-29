@@ -31,6 +31,28 @@ const Navbar = () => {
   const [profileModalMode, setProfileModalMode] = useState(null);
   const dropdownRef = useRef(null);
 
+  // Auto-hide-into-tray: scrolling down tucks the navbar away into a small
+  // floating pill; scrolling up (or tapping the pill) brings it right back.
+  const [navHidden, setNavHidden] = useState(false);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const y = window.scrollY;
+      const delta = y - lastScrollY.current;
+      if (y < 90) {
+        setNavHidden(false);
+      } else if (delta > 6) {
+        setNavHidden(true);
+      } else if (delta < -6) {
+        setNavHidden(false);
+      }
+      lastScrollY.current = y;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   // Smooth Action Word Fade-in Loop (ADD -> STORE -> SHARE -> CHAT)
   const [actionIdx, setActionIdx] = useState(0);
   const [fadeWord, setFadeWord] = useState(true);
@@ -86,9 +108,10 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="navbar" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
-      {/* Brand Title (RecipeBook in Catilya Font) & Smooth Tagline Loop */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <>
+      <nav className={`navbar${navHidden ? ' navbar-hidden' : ''}`}>
+        {/* Brand Title (RecipeBook in Catilya Font) & Smooth Tagline Loop */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <a
           href="/"
           onClick={handleBrandClick}
@@ -244,7 +267,18 @@ const Navbar = () => {
           </Link>
         </div>
       )}
-    </nav>
+      </nav>
+
+      {/* Collapsed pill shown while the navbar is tucked away — click to bring it back */}
+      <div
+        className={`navbar-tray${navHidden ? ' visible' : ''}`}
+        onClick={() => setNavHidden(false)}
+        title="Show navigation"
+      >
+        <span className="tray-dot" />
+        🍲 RecipeBook
+      </div>
+    </>
   );
 };
 
